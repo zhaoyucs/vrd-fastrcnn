@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from utils.config import opt
 from data.dataset import Dataset, TestDataset, inverse_normalize
+from data.vrd_dataset import NoAnnotaion
 from model import FasterRCNNVGG16
 from torch.utils import data as data_
 from trainer import FasterRCNNTrainer
@@ -28,6 +29,8 @@ def eval(dataloader, faster_rcnn, test_num=10000):
     pred_bboxes, pred_labels, pred_scores = list(), list(), list()
     gt_bboxes, gt_labels, gt_difficults = list(), list(), list()
     for ii, (imgs, sizes, gt_bboxes_, gt_labels_, gt_difficults_) in tqdm(enumerate(dataloader)):
+        if len(imgs) == 0:
+            continue
         sizes = [sizes[0][0].item(), sizes[1][0].item()]
         pred_bboxes_, pred_labels_, pred_scores_ = faster_rcnn.predict(imgs, [sizes])
         gt_bboxes += list(gt_bboxes_.numpy())
@@ -40,7 +43,7 @@ def eval(dataloader, faster_rcnn, test_num=10000):
 
     result = eval_detection_voc(
         pred_bboxes, pred_labels, pred_scores,
-        gt_bboxes, gt_labels, gt_difficults,
+        gt_bboxes, gt_labels, None,
         use_07_metric=True)
     return result
 
@@ -74,6 +77,8 @@ def train(**kwargs):
     for epoch in range(opt.epoch):
         trainer.reset_meters()
         for ii, (img, bbox_, label_, scale) in tqdm(enumerate(dataloader)):
+            if len(img) == 0:
+                continue
             scale = at.scalar(scale)
             img, bbox, label = img.cuda().float(), bbox_.cuda(), label_.cuda()
             trainer.train_step(img, bbox, label, scale)
@@ -89,6 +94,7 @@ def train(**kwargs):
                 ori_img_ = inverse_normalize(at.tonumpy(img[0]))
                 gt_img = visdom_bbox(ori_img_,
                                      at.tonumpy(bbox_[0]),
+                                     dataset.db.label_names,
                                      at.tonumpy(label_[0]))
                 trainer.vis.img('gt_img', gt_img)
 
@@ -96,6 +102,7 @@ def train(**kwargs):
                 _bboxes, _labels, _scores = trainer.faster_rcnn.predict([ori_img_], visualize=True)
                 pred_img = visdom_bbox(ori_img_,
                                        at.tonumpy(_bboxes[0]),
+                                       dataset.db.label_names,
                                        at.tonumpy(_labels[0]).reshape(-1),
                                        at.tonumpy(_scores[0]))
                 trainer.vis.img('pred_img', pred_img)

@@ -60,7 +60,7 @@ def vis_image(img, ax=None):
     return ax
 
 
-def vis_bbox(img, bbox, label=None, score=None, ax=None):
+def vis_bbox(img, bbox, label_list, label=None, score=None, ax=None):
     """Visualize bounding boxes inside image.
 
     Args:
@@ -88,7 +88,8 @@ def vis_bbox(img, bbox, label=None, score=None, ax=None):
 
     """
 
-    label_names = list(VOC_BBOX_LABEL_NAMES) + ['bg']
+    # label_names = list(VOC_BBOX_LABEL_NAMES) + ['bg']
+    label_names = label_list + ['bg']
     # add for index `-1`
     if label is not None and not len(bbox) == len(label):
         raise ValueError('The length of label must be same as that of bbox')

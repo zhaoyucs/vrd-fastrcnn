@@ -2,6 +2,7 @@ from __future__ import  absolute_import
 from __future__ import  division
 import torch as t
 from data.voc_dataset import VOCBboxDataset
+from data.vrd_dataset import VRDBboxDataset
 from skimage import transform as sktsf
 from torchvision import transforms as tvtsf
 from data import util
@@ -100,11 +101,15 @@ class Transform(object):
 class Dataset:
     def __init__(self, opt):
         self.opt = opt
-        self.db = VOCBboxDataset(opt.voc_data_dir)
+        # self.db = VOCBboxDataset(opt.voc_data_dir)
+        self.db = VRDBboxDataset(opt.voc_data_dir)
         self.tsf = Transform(opt.min_size, opt.max_size)
 
     def __getitem__(self, idx):
-        ori_img, bbox, label, difficult = self.db.get_example(idx)
+        try:
+            ori_img, bbox, label, difficult = self.db.get_example(idx)
+        except Exception:
+            return [], [], [], []
 
         img, bbox, label, scale = self.tsf((ori_img, bbox, label))
         # TODO: check whose stride is negative to fix this instead copy all
@@ -118,10 +123,14 @@ class Dataset:
 class TestDataset:
     def __init__(self, opt, split='test', use_difficult=True):
         self.opt = opt
-        self.db = VOCBboxDataset(opt.voc_data_dir, split=split, use_difficult=use_difficult)
+        # self.db = VOCBboxDataset(opt.voc_data_dir, split=split, use_difficult=use_difficult)
+        self.db = VRDBboxDataset(opt.voc_data_dir, split=split)
 
     def __getitem__(self, idx):
-        ori_img, bbox, label, difficult = self.db.get_example(idx)
+        try:
+            ori_img, bbox, label, difficult = self.db.get_example(idx)
+        except Exception:
+            return [], [], [], [], []
         img = preprocess(ori_img)
         return img, ori_img.shape[1:], bbox, label, difficult
 
