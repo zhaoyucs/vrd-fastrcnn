@@ -36,7 +36,7 @@ class Config:
 
     # training
     epoch = 14
-
+    vrd_epoch = 25
 
     use_adam = False # Use Adam optimizer
     use_chainer = False # try match everything as chainer
@@ -50,6 +50,9 @@ class Config:
 
     caffe_pretrain = False # use caffe pretrained model instead of torchvision
     caffe_pretrain_path = 'checkpoints/vgg16_caffe.pth'
+
+    # VRD trainer
+    faster_rcnn_model = 'checkpoints/faster_rcnn'
 
     def _parse(self, kwargs):
         state_dict = self._state_dict()

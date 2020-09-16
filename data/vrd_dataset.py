@@ -57,5 +57,45 @@ class VRDBboxDataset:
     __getitem__ = get_example
 
 
+class VRDFullDataset:
+    def __init__(self, data_dir, split='train'):
+        self.data_dir = data_dir
+
+        json_file = os.path.join(data_dir, "annotations_{0}.json".format(split))
+        self.data_json = json.load(open(json_file))
+        self.id_list = list(self.data_json.keys())
+
+        self.label_names = json.load(open(os.path.join(data_dir, "objects.json")))
+        self.predicates_name = json.load(open(os.path.join(data_dir, "predicates.json")))
+
+        self.img_dir = os.path.join(data_dir, "sg_dataset/sg_{0}_images".format(split))
+
+        # all relationship triplets
+        # (i, j, k)
+        self.triplets = []
+        for _, item in self.data_json.items():
+            for anno in item:
+                R = (anno["subject"]["catagory"], anno["object"]["catagory"], anno["predicate"])
+                if not R in self.triplets:
+                    self.triplets.append(R)
+
+    def get_example(self, i):
+        anno = self.data_json[self.id_list[i]]
+        D_list = []
+        for r in anno:
+            i = r["subject"]["category"]
+            j = r["object"]["category"]
+            k = r["predicate"]
+            O1 = [r["subject"]["bbox"][0], r["subject"]["bbox"][2], r["subject"]["bbox"][1], r["subject"]["bbox"][3]]
+            O2 = [r["object"]["bbox"][0], r["object"]["bbox"][2], r["subject"]["bbox"][1], r["subject"]["bbox"][3]]
+            D_list.append(((i, j, k), O1, O2))
+
+        img_file = os.path.join(self.img_dir, self.id_list[i])
+        img = read_image(img_file, color=True)
+        return img, D_list
+
+    __getitem__ = get_example
+
+
 if __name__ == '__main__':
     test = VRDBboxDataset(r"F:\json_dataset_vrd")

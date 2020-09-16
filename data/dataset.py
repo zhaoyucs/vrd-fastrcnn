@@ -2,7 +2,7 @@ from __future__ import  absolute_import
 from __future__ import  division
 import torch as t
 from data.voc_dataset import VOCBboxDataset
-from data.vrd_dataset import VRDBboxDataset
+from data.vrd_dataset import VRDBboxDataset, VRDFullDataset
 from skimage import transform as sktsf
 from torchvision import transforms as tvtsf
 from data import util
@@ -136,3 +136,16 @@ class TestDataset:
 
     def __len__(self):
         return len(self.db)
+
+
+class VRDDataset:
+    def __init__(self, opt, split='train'):
+        self.opt = opt
+
+        self.db = VRDFullDataset(opt.voc_data_dir, split=split)
+
+    def __getitem__(self, idx):
+        try:
+            ori_img, bbox, label, difficult = self.db.get_example(idx)
+        except Exception:
+            return [], [], [], [], []

@@ -1,14 +1,16 @@
-from __future__ import  absolute_import
+from __future__ import absolute_import
+import numpy as np
 import torch as t
 from torch import nn
 from torchvision.models import vgg16
 from torchvision.ops import RoIPool
+from torchvision.transforms import CenterCrop
 
 from model.region_proposal_network import RegionProposalNetwork
 from model.faster_rcnn import FasterRCNN
 from utils import array_tool as at
 from utils.config import opt
-
+from scipy.spatial.distance import cosine
 
 def decom_vgg16():
     # the 30th layer of features is relu of conv5_3
@@ -37,6 +39,27 @@ def decom_vgg16():
     return nn.Sequential(*features), classifier
 
 
+def convert_coords(sc, oc):
+    sx, sy, sw, sh = sc
+    ox, oy, ow, oh = oc
+    rx = min(sx, ox)
+    ry = min(sy, oy)
+    rw = max(sx + sw, ox + ow) - rx
+    rh = max(sy + sh, oy + oh) - ry
+    return rx, ry, rw, rh
+
+def union_bbox(sub, obj):
+    # bbox = [ymin, xmin, ymax, xmax]
+    sub_y_min, sub_x_min, sub_y_max, sub_x_max = sub
+    obj_y_min, obj_x_min, obj_y_max, obj_x_max = obj
+
+    return min(sub_y_min, obj_y_min), min(sub_x_min, obj_x_min), max(sub_y_max, obj_y_max), max(sub_x_max, obj_x_max)
+
+
+def get_ruid(O1, O2, k):
+    return (O1, O2), convert_coords(O1[1], O2[1]), k
+
+
 class FasterRCNNVGG16(FasterRCNN):
     """Faster R-CNN based on VGG-16.
     For descriptions on the interface of this model, please refer to
@@ -60,7 +83,6 @@ class FasterRCNNVGG16(FasterRCNN):
                  ratios=[0.5, 1, 2],
                  anchor_scales=[8, 16, 32]
                  ):
-                 
         extractor, classifier = decom_vgg16()
 
         rpn = RegionProposalNetwork(
@@ -113,7 +135,7 @@ class VGG16RoIHead(nn.Module):
         self.n_class = n_class
         self.roi_size = roi_size
         self.spatial_scale = spatial_scale
-        self.roi = RoIPool( (self.roi_size, self.roi_size),self.spatial_scale)
+        self.roi = RoIPool((self.roi_size, self.roi_size), self.spatial_scale)
 
     def forward(self, x, rois, roi_indices):
         """Forward the chain.
@@ -138,7 +160,7 @@ class VGG16RoIHead(nn.Module):
         indices_and_rois = t.cat([roi_indices[:, None], rois], dim=1)
         # NOTE: important: yx->xy
         xy_indices_and_rois = indices_and_rois[:, [0, 2, 1, 4, 3]]
-        indices_and_rois =  xy_indices_and_rois.contiguous()
+        indices_and_rois = xy_indices_and_rois.contiguous()
 
         pool = self.roi(x, indices_and_rois)
         pool = pool.view(pool.size(0), -1)
@@ -146,6 +168,208 @@ class VGG16RoIHead(nn.Module):
         roi_cls_locs = self.cls_loc(fc7)
         roi_scores = self.score(fc7)
         return roi_cls_locs, roi_scores
+
+
+class VGG16PREDICATES(nn.Module):
+
+    def __init__(self, faster_rcnn, word2vec=None, D_samples=[], K_samples=500000):
+
+        self.faster_rcnn = faster_rcnn
+
+        self.extractor, self.classifier = decom_vgg16()
+
+        self.w2v = word2vec
+        self.n = len(word2vec['obj'])
+        self.k = len(word2vec['rel'])
+        # parameter for V()
+        self.Z = nn.Parameter(t.Tensor(self.k, 4096))
+        # bias
+        self.s =nn.Parameter(t.Tensor(self.k, 1))
+        # parameter for f()
+        self.W = nn.Parameter(t.Tensor(self.k, 600))
+        # bias
+        self.b = nn.Parameter(t.Tensor(self.k, 1))
+
+        # sample number for Eq.4
+        self.K_samples = K_samples
+        if D_samples:
+            self.sample_R_pairs(D_samples)
+
+        self.init_params()
+
+    def init_params(self):
+        nn.init.orthogonal_(self.Z)
+        nn.init.orthogonal_(self.s)
+        nn.init.orthogonal_(self.W)
+        nn.init.orthogonal_(self.b)
+
+    def forward(self, x, D):
+
+        img_size = x.shape[2:]
+
+        loss = self.loss(x, D)
+        return loss
+
+    def init_w2v_tab(self):
+        N, K = (range(self.n), range(self.k))
+
+        co = lambda i1, i2: cosine(self.w2v['obj'][i1],   self.w2v['obj'][i2])
+        cr = lambda k1, k2: cosine(self.w2v['rel'][k1],   self.w2v['rel'][k2])
+
+        # TODO the bug here is what *could* have been causing the issues earlier!!!
+        self.w2v_nt = t.Tensor([[co(i1, i2) for i2 in N] for i1 in N])
+        self.w2v_vt = t.Tensor([[cr(k1, k2) for k2 in K] for k1 in K])
+
+    def w2v_dist(self, R1, R2):
+        i1, j1, k1 = R1
+        i2, j2, k2 = R2
+        return self.w2v_nt[i1, i2] + self.w2v_nt[j1, j2] + self.w2v_vt[k1, k2]
+
+    def word_vec(self, i, j):
+        return t.cat((self.w2v['obj'][i], self.w2v['obj'][j]))
+
+    def d(self, R1, R2):
+        """
+        Distance between two predicate triplets.
+
+        """
+        d_rel = self.f(R1) - self.f(R2)
+        d_obj = self.w2v_dist(R1, R2)
+        d = (d_rel ** 2) / d_obj
+        return d if (d > 1e-10) else 1e-10
+
+    def func_f(self, R):
+        """
+        Reduce relationship <i,j,k> to scalar language space.
+
+        """
+        i, j, k = R
+
+        if self.f_full_tab is not None:
+            return self.f_full_tab[i, j, k]
+
+        if R not in self.f_dict:
+            wvec = self.word_vec(i, j)
+            f = t.dot(self.W[k].T, wvec) + self.b[k]
+            self.f_dict[R] = f
+
+        return self.f_dict[R]
+
+    def func_f_full(self):
+        if self.f_full_tab is None:
+            w_i = self.w2v['obj'][None, ...]  # (1, N, 300)
+            w_i = np.concatenate([w_i, np.zeros_like(w_i)], axis=2)  # (1, N, 600)
+            w_j = self.w2v['obj'][:, np.newaxis, :]  # (N, 1, 300)
+            w_j = np.concatenate([np.zeros_like(w_j), w_j], axis=2)  # (1, N, 600)
+
+            n, k = (self.n, self.k)
+            B = np.reshape(np.tile(self.b, n ** 2), (k, n, n)).T  # (1,)  ->  (N, N, K)
+
+            tile_wv = w_i + w_j  # np auto-tiles `w_i`, `w_j` to (N, N, 300)
+            F = np.tensordot(tile_wv, self.W, axes=(2, 1)) + B  # (N, N, 600)  x  (K, 600)
+
+            self.f_full_tab = F
+            return F
+        else:
+            return self.f_full_tab
+
+    def func_V(self, img, R, O1, O2, verbose=False):
+        """
+        Reduce relationship <i,j,k> to scalar visual space.
+
+        """
+        i, j, k = R
+        u_bbox = union_bbox(O1, O2)
+        region = img[:,u_bbox[0]:u_bbox[2],u_bbox[1]:u_bbox[3]]
+        _h = self.extractor(region)
+        fc7 = self.classifier(_h)
+
+        # ruid = get_ruid(O1, O2, k)
+        _bboxes, _labels, _scores = self.faster_rcnn.predict([img], visualize=True)
+
+        P_i = _scores[i]
+        P_j = _scores[j]
+        P_k = t.dot(self.Z[k], fc7) + self.s[k]
+        # try:
+        #     P_i = self.obj_probs[O1[:2]][i]
+        #     P_j = self.obj_probs[O2[:2]][j]
+        # except:
+        #     import ipdb;
+        #     ipdb.set_trace()
+        #
+        # # V_dict keeps a table of previously computed values by input
+        # if ruid not in self.V_dict:
+        #     rf = ruid2feats(ruid)
+        #     try:
+        #         cnn = self.rel_feats[rf]
+        #     except:
+        #         import ipdb;
+        #         ipdb.set_trace()
+        #     Z, s = (self.Z, self.s)
+        #     self.V_dict[ruid] = np.dot(Z[k], cnn) + s[k]
+        #
+        # P_k = self.V_dict[ruid]
+
+        if verbose:
+            print('V: i {}  j {}  k {}'.format(P_i, P_j, P_k))
+
+        return P_i * P_j * P_k
+
+    def sample_R_pairs(self, triplets):
+        # TODO other possibility is that we sample pairs in same image only
+        m = self.K_samples
+        samples = np.random.randint(0, len(triplets), m*2)
+        R_samples = [triplets[s] for s in samples]
+        self.R_pairs = zip(R_samples[:m], R_samples[m:])
+
+    def func_K(self):
+        """
+        Eq (4): randomly sample relationship pairs and minimize variance.
+
+        """
+        # import ipdb; ipdb.set_trace()
+        # R_rand = lambda: (randint(self.n), randint(self.n), randint(self.k))
+        # R_samples = ((R_rand(), R_rand()) for n in range(self.K_samples))
+        R_dists = t.tensor([self.d(R1, R2) for R1, R2 in self.R_pairs])
+        return t.var(R_dists)
+
+    def func_L(self, D):
+        """
+        Likelihood of relationships
+
+        D: triplets of training data
+
+        """
+        # import ipdb; ipdb.set_trace()
+        Rs, O1s, O2s = zip(*D)
+        fn = lambda R1, R2: max(self.f(R1) - self.f(R2) + 1, 0)
+        return sum(fn(R1, R2) for R1 in Rs for R2 in Rs)
+
+    def func_C(self, img, D):
+        """
+        Rank loss function
+
+        """
+        # import ipdb; ipdb.set_trace()
+        C = 0.0
+        for R, O1, O2 in D:
+            c_ = [self.func_V(img, R_, O1_, O2_) * self.func_f(R_) for R_, O1_, O2_ in D
+                  if (R_ != R) and (O1_ != O1 or O2_ != O2)]
+            if c_:
+                c_max = max(c_)
+                c = self.func_V(img, R, O1, O2) * self.func_f(R)
+                C += max(0, 1 - c + c_max)
+        return C
+
+    def loss(self, img, D):
+        """
+        Final objective loss function.
+
+        """
+        C = self.func_C(img, D)
+        L = self.lamb1 * self.func_L(D)
+        K = self.lamb2 * self.func_K()
+        return C + L + K
 
 
 def normal_init(m, mean, stddev, truncated=False):
