@@ -62,3 +62,8 @@ def train(**kwargs):
             total_loss.backward()
             optimizer.step()
 
+
+if __name__ == '__main__':
+    import fire
+
+    fire.Fire()
