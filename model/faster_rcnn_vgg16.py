@@ -171,7 +171,6 @@ class VGG16RoIHead(nn.Module):
 
 
 class VGG16PREDICATES(nn.Module):
-
     def __init__(self, faster_rcnn, word2vec=None, D_samples=[], K_samples=500000):
 
         super(VGG16PREDICATES, self).__init__()

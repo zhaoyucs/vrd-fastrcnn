@@ -34,12 +34,13 @@ def train(**kwargs):
                                   # pin_memory=True,
                                   num_workers=opt.num_workers)
 
+    word2vec_db = gensim.models.KeyedVectors.load_word2vec_format("word2vec.bin", binary=True)
     faster_rcnn = FasterRCNNVGG16()
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
     faster_rcnn_trainer.load(opt.faster_rcnn_model)
-    vrd_trainer = VGG16PREDICATES(faster_rcnn_trainer).cuda()
+    vrd_trainer = VGG16PREDICATES(faster_rcnn_trainer, word2vec_db, dataset.db.triplets).cuda()
     optimizer = t.optim.Adam(vrd_trainer.parameters())
-    word2vec_db = gensim.models.KeyedVectors.load_word2vec_format("word2vec.bin", binary=True)
+
 
     w2v = {
         "obj": [],
