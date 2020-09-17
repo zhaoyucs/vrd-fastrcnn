@@ -2,6 +2,7 @@ from __future__ import  absolute_import
 import os
 
 import gensim
+import json
 import ipdb
 import matplotlib
 from tqdm import tqdm
@@ -34,7 +35,8 @@ def train(**kwargs):
                                   # pin_memory=True,
                                   num_workers=opt.num_workers)
 
-    word2vec_db = gensim.models.KeyedVectors.load_word2vec_format("word2vec.bin", binary=True)
+    # word2vec_db = gensim.models.KeyedVectors.load_word2vec_format("word2vec.bin", binary=True)
+    word2vec_db = json.load(open("w2v.txt"))
     faster_rcnn = FasterRCNNVGG16()
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
     faster_rcnn_trainer.load(opt.faster_rcnn_model)
