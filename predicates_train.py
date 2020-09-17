@@ -36,7 +36,13 @@ def train(**kwargs):
                                   num_workers=opt.num_workers)
 
     # word2vec_db = gensim.models.KeyedVectors.load_word2vec_format("word2vec.bin", binary=True)
-    word2vec_db = json.load(open("w2v.json"))
+    word2vec_map = json.load(open("w2v.json"))
+    word2vec_db = {"obj":[], "rel":[]}
+    for obj in dataset.db.label_names:
+        word2vec_db["obj"].append(word2vec_map[obj])
+    for rel in dataset.db.predicates_name:
+        word2vec_db["rel"].append(word2vec_map[rel])
+
     faster_rcnn = FasterRCNNVGG16()
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
     faster_rcnn_trainer.load(opt.faster_rcnn_model)
