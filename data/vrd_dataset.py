@@ -2,6 +2,7 @@ import os
 import json
 
 import numpy as np
+import torch
 
 from .util import read_image
 
@@ -93,6 +94,7 @@ class VRDFullDataset:
             O2 = [r["object"]["bbox"][0], r["object"]["bbox"][2], r["subject"]["bbox"][1], r["subject"]["bbox"][3]]
             D_list.append(((i, j, k), O1, O2))
 
+        D_list = torch.tensor(D_list)
         img_file = os.path.join(self.img_dir, self.id_list[i])
         img = read_image(img_file, color=True)
         return img, D_list
