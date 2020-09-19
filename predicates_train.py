@@ -5,6 +5,7 @@ import gensim
 import json
 import ipdb
 import matplotlib
+import numpy
 from tqdm import tqdm
 
 from utils.config import opt
@@ -16,6 +17,7 @@ from torch import nn
 from torch.utils import data as data_
 from trainer import FasterRCNNTrainer
 from model import VGG16PREDICATES
+from utils.load_w2v import load_from_word2vec
 from utils import array_tool as at
 from utils.vis_tool import visdom_bbox
 from utils.eval_tool import eval_detection_voc
@@ -35,13 +37,28 @@ def train(**kwargs):
                                   # pin_memory=True,
                                   num_workers=opt.num_workers)
 
-    word2vec_google = gensim.models.KeyedVectors.load_word2vec_format("word2vec.bin", binary=True)
-    word2vec_map = json.load(open("w2v.json"))
-    word2vec_db = {"obj":[], "rel":[]}
+    word2vec_map = load_from_word2vec("test_word2vec.txt")
+    word2vec_db = {"obj": [], "rel": []}
     for obj in dataset.db.label_names:
-        word2vec_db["obj"].append(word2vec_map[obj])
+        if obj in word2vec_map:
+            word2vec_db["obj"].append(word2vec_map[obj])
+        else:
+            objs = obj.split(" ")
+            v = []
+            for i in objs:
+                v.append(word2vec_map[i])
+            v = numpy.array(v)
+            word2vec_db["obj"].append(numpy.average(v, axis=1))
     for rel in dataset.db.predicates_name:
-        word2vec_db["rel"].append(word2vec_google[rel])
+        if rel in word2vec_map:
+            word2vec_db["rel"].append(word2vec_map[rel])
+        else:
+            rels = rel.split(" ")
+            v = []
+            for i in rels:
+                v.append(word2vec_map[i])
+            v = numpy.array(v)
+            word2vec_db["rel"].append(numpy.average(v, axis=1))
 
     faster_rcnn = FasterRCNNVGG16()
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
