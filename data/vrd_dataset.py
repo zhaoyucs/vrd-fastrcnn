@@ -75,7 +75,7 @@ class VRDFullDataset:
         self.triplets = []
         for _, item in self.data_json.items():
             for anno in item:
-                R = (anno["subject"]["catagory"], anno["object"]["catagory"], anno["predicate"])
+                R = (anno["subject"]["category"], anno["object"]["category"], anno["predicate"])
                 if not R in self.triplets:
                     self.triplets.append(R)
 
