@@ -79,6 +79,9 @@ class VRDFullDataset:
                 if not R in self.triplets:
                     self.triplets.append(R)
 
+    def __len__(self):
+        return len(self.data_json)
+
     def get_example(self, i):
         anno = self.data_json[self.id_list[i]]
         D_list = []
