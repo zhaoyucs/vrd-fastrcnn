@@ -280,7 +280,8 @@ class VGG16PREDICATES(nn.Module):
         """
         i, j, k = R
         u_bbox = union_bbox(O1, O2)
-        region = img[:,u_bbox[0]:u_bbox[2],u_bbox[1]:u_bbox[3]]
+        region = img[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]]
+
         _h = self.extractor(region)
         fc7 = self.classifier(_h)
 
