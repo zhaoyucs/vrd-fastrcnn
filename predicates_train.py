@@ -52,6 +52,7 @@ def train(**kwargs):
                 continue
 
             img, D = img.cuda().float(), D.cuda()
+            print(D)
 
             total_loss = vrd_trainer(img, D)
             optimizer.zero_grad()
