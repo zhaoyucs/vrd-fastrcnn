@@ -146,6 +146,10 @@ class VRDDataset:
 
     def __getitem__(self, idx):
         try:
-            ori_img, bbox, label, difficult = self.db.get_example(idx)
+            ori_img, D_list = self.db.get_example(idx)
         except Exception:
-            return [], [], [], [], []
+            return [], []
+        return ori_img, D_list
+
+    def __len__(self):
+        return len(self.db)
