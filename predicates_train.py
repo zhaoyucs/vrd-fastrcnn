@@ -51,7 +51,7 @@ def train(**kwargs):
             if len(img) == 0:
                 continue
 
-            img, D = img.cuda().float(), D.cuda()
+            img = img.cuda().float()
             print(D)
 
             total_loss = vrd_trainer(img, D)
