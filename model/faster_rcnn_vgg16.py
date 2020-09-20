@@ -173,7 +173,7 @@ class VGG16RoIHead(nn.Module):
 
 
 class VGG16PREDICATES(nn.Module):
-    def __init__(self, faster_rcnn, word2vec=None, D_samples=[], K_samples=500000):
+    def __init__(self, faster_rcnn, word2vec=None, D_samples=[], K_samples=500000, lamb1=0.05, lamb2=0.001):
 
         super(VGG16PREDICATES, self).__init__()
         self.faster_rcnn = faster_rcnn
@@ -191,6 +191,9 @@ class VGG16PREDICATES(nn.Module):
         self.W = nn.Parameter(t.Tensor(self.k, 600))
         # bias
         self.b = nn.Parameter(t.Tensor(self.k, 1))
+
+        self.lamb1 = lamb1
+        self.lamb2 = lamb2
 
         # sample number for Eq.4
         self.K_samples = K_samples
