@@ -2,6 +2,7 @@ from __future__ import absolute_import
 import numpy as np
 import torch as t
 from torch import nn
+import torchvision
 from torchvision.models import vgg16
 from torchvision.ops import RoIPool
 from torchvision.transforms import CenterCrop
@@ -47,6 +48,7 @@ def convert_coords(sc, oc):
     rw = max(sx + sw, ox + ow) - rx
     rh = max(sy + sh, oy + oh) - ry
     return rx, ry, rw, rh
+
 
 def union_bbox(sub, obj):
     # bbox = [ymin, xmin, ymax, xmax]
@@ -280,9 +282,12 @@ class VGG16PREDICATES(nn.Module):
         """
         i, j, k = R
         u_bbox = union_bbox(O1, O2)
-        region = img[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]]
-
+        # region = img[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]]
+        mask = t.ones_like(img).bool()
+        mask[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]] = False
+        region = img.masked_fill(mask, 0)
         _h = self.extractor(region)
+        print(_h.shape)
         fc7 = self.classifier(_h)
 
         # ruid = get_ruid(O1, O2, k)
