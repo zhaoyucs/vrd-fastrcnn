@@ -105,7 +105,7 @@ def resize_bbox(bbox, in_size, out_size):
         Bounding boxes rescaled according to the given image shapes.
 
     """
-    bbox = bbox.copy()
+    bbox = np.array(bbox)
     y_scale = float(out_size[0]) / in_size[0]
     x_scale = float(out_size[1]) / in_size[1]
     bbox[:, 0] = y_scale * bbox[:, 0]

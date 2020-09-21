@@ -351,7 +351,7 @@ class VGG16PREDICATES(nn.Module):
         """
         # import ipdb; ipdb.set_trace()
         Rs, O1s, O2s = zip(*D)
-        fn = lambda R1, R2: max(self.f(R1) - self.f(R2) + 1, 0)
+        fn = lambda R1, R2: max(self.func_f(R1) - self.func_f(R2) + 1, 0)
         return sum(fn(R1, R2) for R1 in Rs for R2 in Rs)
 
     def func_C(self, img, D):
