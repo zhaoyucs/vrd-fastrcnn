@@ -124,7 +124,7 @@ class Transform_vrd(object):
         # bbox = util.flip_bbox(
         #     bbox, (o_H, o_W), x_flip=params['x_flip'])
 
-        return img, d_list
+        return img, d
 
 
 class Dataset:
@@ -172,7 +172,7 @@ class VRDDataset:
         self.opt = opt
 
         self.db = VRDFullDataset(opt.voc_data_dir, split=split)
-        self.tsf = Transform_vrd(opt.min_size, opt.max_size)
+        # self.tsf = Transform_vrd(opt.min_size, opt.max_size)
 
     def __getitem__(self, idx):
         try:
@@ -180,7 +180,7 @@ class VRDDataset:
         except Exception:
             return [], []
 
-        ori_img, D_list = self.tsf((ori_img, D_list))
+        # ori_img, D_list = self.tsf((ori_img, D_list))
         return ori_img, D_list
 
     def __len__(self):
