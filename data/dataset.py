@@ -60,7 +60,10 @@ def preprocess(img, min_size=600, max_size=1000):
         ~numpy.ndarray: A preprocessed image.
 
     """
-    C, H, W = img.shape
+    if len(img.shape) == 4:
+        b, C, H, W = img.shape
+    else:
+        C, H, W = img.shape
     scale1 = min_size / min(H, W)
     scale2 = max_size / max(H, W)
     scale = min(scale1, scale2)
