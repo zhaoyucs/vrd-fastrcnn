@@ -279,8 +279,8 @@ class VGG16PREDICATES(nn.Module):
         """
         i, j, k = R
 
-        if self.f_full_tab is not None:
-            return self.f_full_tab[i, j, k]
+        # if self.f_full_tab is not None:
+        #     return self.f_full_tab[i, j, k]
 
         if R not in self.f_dict:
             wvec = self.word_vec(i, j)
@@ -289,23 +289,23 @@ class VGG16PREDICATES(nn.Module):
 
         return self.f_dict[R]
 
-    def func_f_full(self):
-        if self.f_full_tab is None:
-            w_i = self.w2v['obj'][None, ...]  # (1, N, 300)
-            w_i = np.concatenate([w_i, np.zeros_like(w_i)], axis=2)  # (1, N, 600)
-            w_j = self.w2v['obj'][:, np.newaxis, :]  # (N, 1, 300)
-            w_j = np.concatenate([np.zeros_like(w_j), w_j], axis=2)  # (1, N, 600)
-
-            n, k = (self.n, self.k)
-            B = np.reshape(np.tile(self.b, n ** 2), (k, n, n)).T  # (1,)  ->  (N, N, K)
-
-            tile_wv = w_i + w_j  # np auto-tiles `w_i`, `w_j` to (N, N, 300)
-            F = np.tensordot(tile_wv, self.W, axes=(2, 1)) + B  # (N, N, 600)  x  (K, 600)
-
-            self.f_full_tab = F
-            return F
-        else:
-            return self.f_full_tab
+    # def func_f_full(self):
+    #     if self.f_full_tab is None:
+    #         w_i = self.w2v['obj'][None, ...]  # (1, N, 300)
+    #         w_i = np.concatenate([w_i, np.zeros_like(w_i)], axis=2)  # (1, N, 600)
+    #         w_j = self.w2v['obj'][:, np.newaxis, :]  # (N, 1, 300)
+    #         w_j = np.concatenate([np.zeros_like(w_j), w_j], axis=2)  # (1, N, 600)
+    #
+    #         n, k = (self.n, self.k)
+    #         B = np.reshape(np.tile(self.b, n ** 2), (k, n, n)).T  # (1,)  ->  (N, N, K)
+    #
+    #         tile_wv = w_i + w_j  # np auto-tiles `w_i`, `w_j` to (N, N, 300)
+    #         F = np.tensordot(tile_wv, self.W, axes=(2, 1)) + B  # (N, N, 600)  x  (K, 600)
+    #
+    #         self.f_full_tab = F
+    #         return F
+    #     else:
+    #         return self.f_full_tab
 
     def func_V(self, img, R, O1, O2, verbose=False):
         """
