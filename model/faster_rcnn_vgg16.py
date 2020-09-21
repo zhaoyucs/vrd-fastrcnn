@@ -52,10 +52,10 @@ def convert_coords(sc, oc):
 
 def union_bbox(sub, obj):
     # bbox = [ymin, xmin, ymax, xmax]
-    sub_y_min, sub_x_min, sub_y_max, sub_x_max = sub
-    obj_y_min, obj_x_min, obj_y_max, obj_x_max = obj
+    sub_y_min, sub_x_min, sub_y_max, sub_x_max = sub[0]
+    obj_y_min, obj_x_min, obj_y_max, obj_x_max = obj[0]
 
-    return min(sub_y_min, obj_y_min), min(sub_x_min, obj_x_min), max(sub_y_max, obj_y_max), max(sub_x_max, obj_x_max)
+    return t.tensor([min(sub_y_min, obj_y_min), min(sub_x_min, obj_x_min), max(sub_y_max, obj_y_max), max(sub_x_max, obj_x_max)])
 
 
 def get_ruid(O1, O2, k):
