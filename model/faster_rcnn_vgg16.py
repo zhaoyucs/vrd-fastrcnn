@@ -13,6 +13,7 @@ from utils import array_tool as at
 from utils.config import opt
 from scipy.spatial.distance import cosine
 
+
 def decom_vgg16():
     # the 30th layer of features is relu of conv5_3
     if opt.caffe_pretrain:
@@ -23,6 +24,33 @@ def decom_vgg16():
         model = vgg16(not opt.load_path)
 
     features = list(model.features)[:30]
+    classifier = model.classifier
+
+    classifier = list(classifier)
+    del classifier[6]
+    if not opt.use_drop:
+        del classifier[5]
+        del classifier[2]
+    classifier = nn.Sequential(*classifier)
+
+    # freeze top4 conv
+    for layer in features[:10]:
+        for p in layer.parameters():
+            p.requires_grad = False
+
+    return nn.Sequential(*features), classifier
+
+
+def full_vgg16():
+    # the 30th layer of features is relu of conv5_3
+    if opt.caffe_pretrain:
+        model = vgg16(pretrained=False)
+        if not opt.load_path:
+            model.load_state_dict(t.load(opt.caffe_pretrain_path))
+    else:
+        model = vgg16(not opt.load_path)
+
+    features = list(model.features)
     classifier = model.classifier
 
     classifier = list(classifier)
@@ -178,7 +206,7 @@ class VGG16PREDICATES(nn.Module):
         super(VGG16PREDICATES, self).__init__()
         self.faster_rcnn = faster_rcnn
 
-        self.extractor, self.classifier = decom_vgg16()
+        self.extractor, self.classifier = full_vgg16()
 
         self.w2v = word2vec
         self.n = len(word2vec['obj'])
