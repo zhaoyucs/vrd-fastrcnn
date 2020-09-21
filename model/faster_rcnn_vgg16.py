@@ -50,22 +50,22 @@ def full_vgg16():
     else:
         model = vgg16(not opt.load_path)
 
-    features = list(model.features)
-    classifier = model.classifier
-
-    classifier = list(classifier)
-    del classifier[6]
-    if not opt.use_drop:
-        del classifier[5]
-        del classifier[2]
-    classifier = nn.Sequential(*classifier)
+    # features = list(model.features)
+    # classifier = model.classifier
+    #
+    # classifier = list(classifier)
+    # del classifier[6]
+    # if not opt.use_drop:
+    #     del classifier[5]
+    #     del classifier[2]
+    # classifier = nn.Sequential(*classifier)
 
     # freeze top4 conv
-    for layer in features[:10]:
+    for layer in model.features[:10]:
         for p in layer.parameters():
             p.requires_grad = False
 
-    return nn.Sequential(*features), classifier
+    return model
 
 
 def convert_coords(sc, oc):
@@ -206,7 +206,8 @@ class VGG16PREDICATES(nn.Module):
         super(VGG16PREDICATES, self).__init__()
         self.faster_rcnn = faster_rcnn
 
-        self.extractor, self.classifier = full_vgg16()
+        # self.extractor, self.classifier = full_vgg16()
+        self.vgg16 = full_vgg16()
 
         self.w2v = word2vec
         self.n = len(word2vec['obj'])
@@ -317,9 +318,10 @@ class VGG16PREDICATES(nn.Module):
         mask = t.ones_like(img).bool()
         mask[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]] = False
         region = img.masked_fill(mask, 0)
-        _h = self.extractor(region)
-        print(_h.shape)
-        fc7 = self.classifier(_h)
+        # _h = self.extractor(region)
+        # print(_h.shape)
+        # fc7 = self.classifier(_h)
+        fc7 = self.vgg16(region)
 
         # ruid = get_ruid(O1, O2, k)
         _bboxes, _labels, _scores = self.faster_rcnn.predict([img], visualize=True)
