@@ -324,7 +324,7 @@ class VGG16PREDICATES(nn.Module):
         fc7 = self.vgg16(region)
 
         # ruid = get_ruid(O1, O2, k)
-        _bboxes, _labels, _scores = self.faster_rcnn.predict([img], visualize=True)
+        _bboxes, _labels, _scores = self.faster_rcnn.faster_rcnn.predict([img], visualize=True)
 
         P_i = _scores[i]
         P_j = _scores[j]
