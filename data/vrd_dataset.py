@@ -86,7 +86,8 @@ class VRDFullDataset:
     def get_example(self, i):
         anno = self.data_json[self.id_list[i]]
         img_file = os.path.join(self.img_dir, self.id_list[i])
-        (h, w), img = read_image_resize(img_file, color=True)
+        img = read_image(img_file, color=True)
+        # (h, w), img = read_image_resize(img_file, color=True)
         D_list = []
         for r in anno:
             i = r["subject"]["category"]
@@ -94,7 +95,7 @@ class VRDFullDataset:
             k = r["predicate"]
             O1 = [r["subject"]["bbox"][0], r["subject"]["bbox"][2], r["subject"]["bbox"][1], r["subject"]["bbox"][3]]
             O2 = [r["object"]["bbox"][0], r["object"]["bbox"][2], r["subject"]["bbox"][1], r["subject"]["bbox"][3]]
-            O1, O2 = resize_bbox([O1, O2], (h, w), (224, 224))
+            # O1, O2 = resize_bbox([O1, O2], (h, w), (224, 224))
             D_list.append(((i, j, k), O1, O2))
         return img, D_list
 

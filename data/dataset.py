@@ -101,6 +101,32 @@ class Transform(object):
         return img, bbox, label, scale
 
 
+class Transform_vrd(object):
+
+    def __init__(self, min_size=600, max_size=1000):
+        self.min_size = min_size
+        self.max_size = max_size
+
+    def __call__(self, in_data):
+        img, d_list = in_data
+        _, _, H, W = img.shape
+        img = preprocess(img, self.min_size, self.max_size)
+        _, o_H, o_W = img.shape
+        scale = o_H / H
+        for i, _ in enumerate(d_list):
+            d_list[i][1] = util.resize_bbox(d_list[i][1], (H, W), (o_H, o_W))
+            d_list[i][2] = util.resize_bbox(d_list[i][2], (H, W), (o_H, o_W))
+
+
+        # horizontally flip
+        # img, params = util.random_flip(
+        #     img, x_random=True, return_param=True)
+        # bbox = util.flip_bbox(
+        #     bbox, (o_H, o_W), x_flip=params['x_flip'])
+
+        return img, d_list
+
+
 class Dataset:
     def __init__(self, opt):
         self.opt = opt
@@ -146,12 +172,15 @@ class VRDDataset:
         self.opt = opt
 
         self.db = VRDFullDataset(opt.voc_data_dir, split=split)
+        self.tsf = Transform_vrd(opt.min_size, opt.max_size)
 
     def __getitem__(self, idx):
         try:
             ori_img, D_list = self.db.get_example(idx)
         except Exception:
             return [], []
+
+        ori_img, D_list = self.tsf((ori_img, D_list))
         return ori_img, D_list
 
     def __len__(self):
