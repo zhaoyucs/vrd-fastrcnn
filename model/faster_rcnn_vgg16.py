@@ -363,7 +363,7 @@ class VGG16PREDICATES(nn.Module):
         C = 0.0
         for R, O1, O2 in D:
             c_ = [self.func_V(img, R_, O1_, O2_) * self.func_f(R_) for R_, O1_, O2_ in D
-                  if (R_ != R) and (O1_ != O1 or O2_ != O2)]
+                  if (R_ != R) and (not O1_.equal(O1) or not O2_.equal(O2))]
             if c_:
                 c_max = max(c_)
                 c = self.func_V(img, R, O1, O2) * self.func_f(R)

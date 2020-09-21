@@ -50,9 +50,10 @@ def train(**kwargs):
         for ii, (img, D) in tqdm(enumerate(dataloader)):
             if len(img) == 0:
                 continue
+            if D == [] or D[0] == []:
+                continue
 
             img = img.cuda().float()
-            print(D)
 
             total_loss = vrd_trainer(img, D)
             optimizer.zero_grad()
