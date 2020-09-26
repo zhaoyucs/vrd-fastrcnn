@@ -177,11 +177,16 @@ class VRDDataset:
     def __getitem__(self, idx):
         try:
             ori_img, D_list = self.db.get_example(idx)
+            ori_img = ori_img / 255.
         except Exception:
             return [], []
 
         # ori_img, D_list = self.tsf((ori_img, D_list))
-        return ori_img, D_list
+        if opt.caffe_pretrain:
+            normalize = caffe_normalize
+        else:
+            normalize = pytorch_normalze
+        return normalize(ori_img), D_list
 
     def __len__(self):
         return len(self.db)

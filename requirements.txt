@@ -3,7 +3,6 @@ torchvision
 scikit-image
 tqdm
 fire
-pprint
 matplotlib~=1.3.1
 ipdb
 cython

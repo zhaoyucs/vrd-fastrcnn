@@ -14,14 +14,14 @@ from utils.config import opt
 from scipy.spatial.distance import cosine
 
 
-def decom_vgg16():
+def decom_vgg16(**kwargs):
     # the 30th layer of features is relu of conv5_3
     if opt.caffe_pretrain:
         model = vgg16(pretrained=False)
         if not opt.load_path:
             model.load_state_dict(t.load(opt.caffe_pretrain_path))
     else:
-        model = vgg16(not opt.load_path)
+        model = vgg16(not opt.load_path, **kwargs)
 
     features = list(model.features)[:30]
     classifier = model.classifier
@@ -41,15 +41,16 @@ def decom_vgg16():
     return nn.Sequential(*features), classifier
 
 
-def full_vgg16():
+def full_vgg16(**kwargs):
     # the 30th layer of features is relu of conv5_3
-    if opt.caffe_pretrain:
-        model = vgg16(pretrained=False)
-        if not opt.load_path:
-            model.load_state_dict(t.load(opt.caffe_pretrain_path))
-    else:
-        model = vgg16(not opt.load_path)
-
+    # if opt.caffe_pretrain:
+    #     model = vgg16(pretrained=False)
+    #     if not opt.load_path:
+    #         model.load_state_dict(t.load(opt.caffe_pretrain_path))
+    # else:
+    #     model = vgg16(not opt.load_path, **kwargs)
+    
+    model = vgg16(**kwargs)
     # features = list(model.features)
     # classifier = model.classifier
     #
@@ -66,6 +67,17 @@ def full_vgg16():
             p.requires_grad = False
 
     return model
+
+class _test_vgg16(nn.Module):
+    def __init__(self):
+        super(_test_vgg16, self).__init__()
+        self.model = vgg16(pretrained=False)
+        if not opt.load_path:
+            self.model.load_state_dict(t.load(opt.caffe_pretrain_path))
+    
+    @t.no_grad()
+    def predict(self, x):
+        return self.model(x)
 
 
 def convert_coords(sc, oc):
@@ -207,13 +219,14 @@ class VGG16PREDICATES(nn.Module):
         self.faster_rcnn = faster_rcnn
 
         # self.extractor, self.classifier = full_vgg16()
-        self.vgg16 = full_vgg16()
+        self.cnn_obj = full_vgg16(num_classes=100)
+        self.cnn_rel = _test_vgg16()
 
         self.w2v = word2vec
         self.n = len(word2vec['obj'])
         self.k = len(word2vec['rel'])
         # parameter for V()
-        self.Z = nn.Parameter(t.Tensor(self.k, 4096))
+        self.Z = nn.Parameter(t.Tensor(self.k, 1000))
         # bias
         self.s =nn.Parameter(t.Tensor(self.k, 1))
         # parameter for f()
@@ -229,6 +242,7 @@ class VGG16PREDICATES(nn.Module):
         if D_samples:
             self.sample_R_pairs(D_samples)
 
+        self.init_w2v_tab()
         self.init_params()
 
     def init_params(self):
@@ -236,12 +250,19 @@ class VGG16PREDICATES(nn.Module):
         nn.init.orthogonal_(self.s)
         nn.init.orthogonal_(self.W)
         nn.init.orthogonal_(self.b)
+        self.f_dict = {}
+        self.V_dict = {}
+        self.init_w2v_tab
 
-    def forward(self, x, D):
+    def forward(self, x, D_gt):
 
         img_size = x.shape[2:]
 
-        loss = self.loss(x, D)
+        # bboxes, labels,  scores = self.faster_rcnn.faster_rcnn.predict(x, [x.shape[2:]])
+
+        # D = [i,j,k], O1, O2
+
+        loss = self.loss(x, D_gt)
         return loss
 
     def init_w2v_tab(self):
@@ -260,14 +281,14 @@ class VGG16PREDICATES(nn.Module):
         return self.w2v_nt[i1, i2] + self.w2v_nt[j1, j2] + self.w2v_vt[k1, k2]
 
     def word_vec(self, i, j):
-        return t.cat((self.w2v['obj'][i], self.w2v['obj'][j]))
+        return t.cat((t.tensor(self.w2v['obj'][i]).cuda(), t.tensor(self.w2v['obj'][j]).cuda()))
 
     def d(self, R1, R2):
         """
         Distance between two predicate triplets.
 
         """
-        d_rel = self.f(R1) - self.f(R2)
+        d_rel = self.func_f(R1) - self.func_f(R2)
         d_obj = self.w2v_dist(R1, R2)
         d = (d_rel ** 2) / d_obj
         return d if (d > 1e-10) else 1e-10
@@ -282,12 +303,15 @@ class VGG16PREDICATES(nn.Module):
         # if self.f_full_tab is not None:
         #     return self.f_full_tab[i, j, k]
 
-        if R not in self.f_dict:
-            wvec = self.word_vec(i, j)
-            f = t.dot(self.W[k].T, wvec) + self.b[k]
-            self.f_dict[R] = f
+        # if R not in self.f_dict:
+        #     wvec = self.word_vec(i, j)
+        #     f = t.dot(self.W[k].T, wvec) + self.b[k]
+        #     self.f_dict[R] = f
 
-        return self.f_dict[R]
+        # return self.f_dict[R]
+        wvec = self.word_vec(i, j)
+        f = t.dot(self.W[k].squeeze(0), wvec) + self.b[k]
+        return f
 
     # def func_f_full(self):
     #     if self.f_full_tab is None:
@@ -321,14 +345,25 @@ class VGG16PREDICATES(nn.Module):
         # _h = self.extractor(region)
         # print(_h.shape)
         # fc7 = self.classifier(_h)
-        fc7 = self.vgg16(region)
+        fc7 = self.cnn_rel.predict(region)
 
         # ruid = get_ruid(O1, O2, k)
-        _bboxes, _labels, _scores = self.faster_rcnn.faster_rcnn.predict([img])
+        # _bboxes, _labels, _scores = self.faster_rcnn.faster_rcnn.predict(img, [img.shape[2:]])
+        mask1 = t.ones_like(img).bool()
+        mask1[:, :, O1[0][0]:O1[0][2], O1[0][1]:O1[0][3]] = False
+        region1 = img.masked_fill(mask1, 0)
+        score1 = self.cnn_obj(region1)
+        P_i = score1[0][i]
 
-        P_i = _scores[i]
-        P_j = _scores[j]
-        P_k = t.dot(self.Z[k], fc7) + self.s[k]
+        mask2 = t.ones_like(img).bool()
+        mask2[:, :, O2[0][0]:O2[0][2], O2[0][1]:O2[0][3]] = False
+        region2 = img.masked_fill(mask2, 0)
+        score2 = self.cnn_obj(region2)
+        P_j = score2[0][j]
+
+        # P_i = _scores[0][i]
+        # P_j = _scores[j]
+        P_k = t.mm(self.Z[k], fc7.permute(1,0)) + self.s[k]
         # try:
         #     P_i = self.obj_probs[O1[:2]][i]
         #     P_j = self.obj_probs[O2[:2]][j]
@@ -384,29 +419,29 @@ class VGG16PREDICATES(nn.Module):
         fn = lambda R1, R2: max(self.func_f(R1) - self.func_f(R2) + 1, 0)
         return sum(fn(R1, R2) for R1 in Rs for R2 in Rs)
 
-    def func_C(self, img, D):
+    def func_C(self, img, D_gt):
         """
         Rank loss function
 
         """
         # import ipdb; ipdb.set_trace()
         C = 0.0
-        for R, O1, O2 in D:
-            c_ = [self.func_V(img, R_, O1_, O2_) * self.func_f(R_) for R_, O1_, O2_ in D
+        for R, O1, O2 in D_gt:
+            c_ = [self.func_V(img, R_, O1_, O2_) * self.func_f(R_) for R_, O1_, O2_ in D_gt
                   if (R_ != R) and (not O1_.equal(O1) or not O2_.equal(O2))]
-            if c_:
+            if c_ is not None and c_ != []:
                 c_max = max(c_)
                 c = self.func_V(img, R, O1, O2) * self.func_f(R)
                 C += max(0, 1 - c + c_max)
         return C
 
-    def loss(self, img, D):
+    def loss(self, img, D_gt):
         """
         Final objective loss function.
 
         """
-        C = self.func_C(img, D)
-        L = self.lamb1 * self.func_L(D)
+        C = self.func_C(img, D_gt)
+        L = self.lamb1 * self.func_L(D_gt)
         K = self.lamb2 * self.func_K()
         return C + L + K
 
