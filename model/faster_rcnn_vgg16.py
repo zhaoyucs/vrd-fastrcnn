@@ -220,19 +220,20 @@ class VGG16RoIHead(nn.Module):
 class VGG16PREDICATES_PRE_TRAIN(nn.Module):
     def __init__(self):
         super(VGG16PREDICATES_PRE_TRAIN, self).__init__()
-        self.model = full_vgg16(num_classes=70)
+        self.model = full_vgg16(num_classes=70).cuda()
+        self.loss = nn.CrossEntropyLoss()
 
     def forward(self, x, D_gt):
 
-        finall_loss
+        finall_loss = 0
         for R, O1, O2 in D_gt:
             i, j, k = R
             u_bbox = union_bbox(O1, O2)
-            mask = t.ones_like(img).bool()
+            mask = t.ones_like(x).bool()
             mask[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]] = False
-            region = img.masked_fill(mask, 0)
+            region = x.masked_fill(mask, 0)
             score = self.model(region)
-            loss = nn.CrossEntropyLoss(score, t.tensor(k))
+            loss = self.loss(score, t.tensor(k).cuda())
             finall_loss += loss
 
         return finall_loss

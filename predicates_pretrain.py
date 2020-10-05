@@ -1,4 +1,5 @@
-
+from tqdm import tqdm
+import torch as t
 from utils.config import opt
 from torchvision.models import vgg16
 from torch.utils import data as data_
