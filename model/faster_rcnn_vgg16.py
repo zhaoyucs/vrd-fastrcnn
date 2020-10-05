@@ -50,12 +50,13 @@ def full_vgg16(**kwargs):
     # else:
     #     model = vgg16(not opt.load_path, **kwargs)
     
-    if opt.caffe_pretrain:
-        model = vgg16(pretrained=False)
-        if not opt.load_path:
-            model.load_state_dict(t.load(opt.caffe_pretrain_path))
-    else:
-        model = vgg16(not opt.load_path, **kwargs)
+    # if opt.caffe_pretrain:
+    #     model = vgg16(pretrained=False)
+    #     if not opt.load_path:
+    #         model.load_state_dict(t.load(opt.caffe_pretrain_path))
+    # else:
+    #     model = vgg16(not opt.load_path, **kwargs)
+    model = vgg16(**kwargs)
     # features = list(model.features)
     # classifier = model.classifier
     #
@@ -67,9 +68,9 @@ def full_vgg16(**kwargs):
     # classifier = nn.Sequential(*classifier)
 
     # freeze top4 conv
-    for layer in model.features[:10]:
-        for p in layer.parameters():
-            p.requires_grad = False
+    # for layer in model.features[:10]:
+    #     for p in layer.parameters():
+    #         p.requires_grad = False
 
     return model
 
