@@ -60,7 +60,7 @@ def train(**kwargs):
             optimizer.zero_grad()
             total_loss.backward()
             optimizer.step()
-
+        print(total_loss)
 
 if __name__ == '__main__':
     import fire

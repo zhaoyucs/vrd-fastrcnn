@@ -50,7 +50,12 @@ def full_vgg16(**kwargs):
     # else:
     #     model = vgg16(not opt.load_path, **kwargs)
     
-    model = vgg16(**kwargs)
+    if opt.caffe_pretrain:
+        model = vgg16(pretrained=False)
+        if not opt.load_path:
+            model.load_state_dict(t.load(opt.caffe_pretrain_path))
+    else:
+        model = vgg16(not opt.load_path, **kwargs)
     # features = list(model.features)
     # classifier = model.classifier
     #
@@ -211,6 +216,25 @@ class VGG16RoIHead(nn.Module):
         roi_scores = self.score(fc7)
         return roi_cls_locs, roi_scores
 
+class VGG16PREDICATES_PRE_TRAIN(nn.Module):
+    def __init__(self):
+        super(VGG16PREDICATES_PRE_TRAIN, self).__init__()
+        self.model = full_vgg16(num_classes=70)
+
+    def forward(self, x, D_gt):
+
+        finall_loss
+        for R, O1, O2 in D_gt:
+            i, j, k = R
+            u_bbox = union_bbox(O1, O2)
+            mask = t.ones_like(img).bool()
+            mask[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]] = False
+            region = img.masked_fill(mask, 0)
+            score = self.model(region)
+            loss = nn.CrossEntropyLoss(score, t.tensor(k))
+            finall_loss += loss
+
+        return finall_loss
 
 class VGG16PREDICATES(nn.Module):
     def __init__(self, faster_rcnn, word2vec=None, D_samples=[], K_samples=500000, lamb1=0.05, lamb2=0.001):
