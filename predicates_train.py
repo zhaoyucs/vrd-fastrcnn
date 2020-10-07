@@ -48,6 +48,7 @@ def train(**kwargs):
     optimizer = t.optim.Adam(vrd_trainer.parameters())
 
     for epoch in range(opt.vrd_epoch):
+        total_loss = 0
         for ii, (img, D) in tqdm(enumerate(dataloader)):
             if len(img) == 0:
                 continue
@@ -56,11 +57,13 @@ def train(**kwargs):
 
             img = img.cuda().float()
 
-            total_loss = vrd_trainer(img, D)
+            loss = vrd_trainer(img, D)
+            total_loss += loss
             optimizer.zero_grad()
-            total_loss.backward()
+            loss.backward()
             optimizer.step()
-        print(total_loss)
+            
+        print(total_loss / (ii + 1))
 
 if __name__ == '__main__':
     import fire
