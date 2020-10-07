@@ -237,6 +237,11 @@ class VGG16PREDICATES_PRE_TRAIN(nn.Module):
             finall_loss += loss
 
         return finall_loss
+    
+    @t.no_grad()
+    def predict(self, x):
+        return self.model(x)
+        
 
 class VGG16PREDICATES(nn.Module):
     def __init__(self, faster_rcnn, word2vec=None, D_samples=[], K_samples=500000, lamb1=0.05, lamb2=0.001):
@@ -246,7 +251,8 @@ class VGG16PREDICATES(nn.Module):
 
         # self.extractor, self.classifier = full_vgg16()
         self.cnn_obj = full_vgg16(num_classes=100)
-        self.cnn_rel = _test_vgg16()
+        self.cnn_rel = VGG16PREDICATES_PRE_TRAIN()
+        self.cnn_rel.load_state_dict(t.load("./checkpoints/pretrain.plk"))
 
         self.w2v = word2vec
         self.n = len(word2vec['obj'])
