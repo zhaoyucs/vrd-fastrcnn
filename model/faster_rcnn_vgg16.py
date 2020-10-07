@@ -220,37 +220,43 @@ class VGG16RoIHead(nn.Module):
 class VGG16PREDICATES_PRE_TRAIN(nn.Module):
     def __init__(self, train=True):
         super(VGG16PREDICATES_PRE_TRAIN, self).__init__()
-        self.model = full_vgg16(num_classes=70).cuda()
+        self.model = full_vgg16()
+        self.classifier = nn.Linear(1000, 70)
+        self.activation = nn.LeakyReLU(negative_slope=0.1)
         self.loss = nn.CrossEntropyLoss()
-        if not train:
-            self.load_state_dict(t.load("./checkpoints/pretrain.plk"))
-            self.rel_features = self.model.features
-            self.rel_classifier = list(self.model.classifier)
-            del self.rel_classifier[6]
-            self.rel_classifier = nn.Sequential(*self.rel_classifier)
+
+        if train:
+            self.reset_param()
+        else:
+            self.model.load_state_dict(t.load("./checkpoints/pretrain.plk"))
+
+    def reset_param(self):
+        nn.init.orthogonal_(self.classifier.weight)
+        nn.init.zeros_(self.classifier.bias)
+
 
     def forward(self, x, D_gt):
 
         finall_loss = 0
+        n = 0
         for R, O1, O2 in D_gt:
             i, j, k = R
             u_bbox = union_bbox(O1, O2)
             mask = t.ones_like(x).bool()
             mask[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]] = False
             region = x.masked_fill(mask, 0)
-            score = self.model(region)
+            _res = self.model(region)
+            _res = self.classifier(_res)
+            score = self.activation(_res)
             loss = self.loss(score, t.tensor(k).cuda())
             finall_loss += loss
+            n += 1
 
-        return finall_loss
+        return finall_loss, n
     
     @t.no_grad()
-    def predict(self, x):
-        x = self.rel_features(x)
-        x = self.model.avgpool(x)
-        x = t.flatten(x, 1)
-        x = self.rel_classifier(x)
-        return x
+    def get_features(self, x):
+        return self.model(x)
 
 
 class VGG16PREDICATES(nn.Module):
@@ -267,7 +273,7 @@ class VGG16PREDICATES(nn.Module):
         self.n = len(word2vec['obj'])
         self.k = len(word2vec['rel'])
         # parameter for V()
-        self.Z = nn.Parameter(t.Tensor(self.k, 4096))
+        self.Z = nn.Parameter(t.Tensor(self.k, 1000))
         # bias
         self.s =nn.Parameter(t.Tensor(self.k, 1))
         # parameter for f()
@@ -285,15 +291,6 @@ class VGG16PREDICATES(nn.Module):
 
         self.init_w2v_tab()
         self.init_params()
-
-    def get_rel_cnn(self):
-        rel_pretrain = VGG16PREDICATES_PRE_TRAIN()
-        rel_pretrain.load_state_dict(t.load("./checkpoints/pretrain.plk"))
-        rel_features = rel_pretrain.model.features
-        rel_classifier = list(rel_pretrain.model.classifier)
-        del rel_classifier[6]
-        rel_classifier = nn.Sequential(*rel_classifier)
-        return rel_features, rel_classifier
 
 
     def init_params(self):
@@ -396,7 +393,7 @@ class VGG16PREDICATES(nn.Module):
         # _h = self.extractor(region)
         # print(_h.shape)
         # fc7 = self.classifier(_h)
-        fc7 = self.cnn_rel.predict(region)
+        fc7 = self.cnn_rel.get_features(region)
 
         # ruid = get_ruid(O1, O2, k)
         # _bboxes, _labels, _scores = self.faster_rcnn.faster_rcnn.predict(img, [img.shape[2:]])
