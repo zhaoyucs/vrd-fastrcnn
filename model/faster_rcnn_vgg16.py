@@ -218,10 +218,16 @@ class VGG16RoIHead(nn.Module):
         return roi_cls_locs, roi_scores
 
 class VGG16PREDICATES_PRE_TRAIN(nn.Module):
-    def __init__(self):
+    def __init__(self, train=True):
         super(VGG16PREDICATES_PRE_TRAIN, self).__init__()
         self.model = full_vgg16(num_classes=70).cuda()
         self.loss = nn.CrossEntropyLoss()
+        if not train:
+            self.load_state_dict(t.load("./checkpoints/pretrain.plk"))
+            self.rel_features = self.model.features
+            self.rel_classifier = list(self.model.classifier)
+            del self.rel_classifier[6]
+            self.rel_classifier = nn.Sequential(*self.rel_classifier)
 
     def forward(self, x, D_gt):
 
@@ -240,8 +246,12 @@ class VGG16PREDICATES_PRE_TRAIN(nn.Module):
     
     @t.no_grad()
     def predict(self, x):
-        return self.model(x)
-        
+        x = self.rel_features(x)
+        x = self.model.avgpool(x)
+        x = t.flatten(x, 1)
+        x = self.rel_classifier(x)
+        return x
+
 
 class VGG16PREDICATES(nn.Module):
     def __init__(self, faster_rcnn, word2vec=None, D_samples=[], K_samples=500000, lamb1=0.05, lamb2=0.001):
@@ -251,14 +261,13 @@ class VGG16PREDICATES(nn.Module):
 
         # self.extractor, self.classifier = full_vgg16()
         self.cnn_obj = full_vgg16(num_classes=100)
-        self.cnn_rel = VGG16PREDICATES_PRE_TRAIN()
-        self.cnn_rel.load_state_dict(t.load("./checkpoints/pretrain.plk"))
+        self.cnn_rel = VGG16PREDICATES_PRE_TRAIN(train=False)
 
         self.w2v = word2vec
         self.n = len(word2vec['obj'])
         self.k = len(word2vec['rel'])
         # parameter for V()
-        self.Z = nn.Parameter(t.Tensor(self.k, 1000))
+        self.Z = nn.Parameter(t.Tensor(self.k, 4096))
         # bias
         self.s =nn.Parameter(t.Tensor(self.k, 1))
         # parameter for f()
@@ -276,6 +285,16 @@ class VGG16PREDICATES(nn.Module):
 
         self.init_w2v_tab()
         self.init_params()
+
+    def get_rel_cnn(self):
+        rel_pretrain = VGG16PREDICATES_PRE_TRAIN()
+        rel_pretrain.load_state_dict(t.load("./checkpoints/pretrain.plk"))
+        rel_features = rel_pretrain.model.features
+        rel_classifier = list(rel_pretrain.model.classifier)
+        del rel_classifier[6]
+        rel_classifier = nn.Sequential(*rel_classifier)
+        return rel_features, rel_classifier
+
 
     def init_params(self):
         nn.init.orthogonal_(self.Z)

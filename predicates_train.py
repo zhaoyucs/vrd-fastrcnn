@@ -44,7 +44,7 @@ def train(**kwargs):
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
     faster_rcnn_trainer.load(opt.faster_rcnn_model)
     vrd_trainer = VGG16PREDICATES(faster_rcnn_trainer, word2vec_db, dataset.db.triplets).cuda()
-    vrd_trainer = nn.DataParallel(vrd_trainer, device_ids=[0,1])
+    vrd_trainer = nn.DataParallel(vrd_trainer, device_ids=[0])
     optimizer = t.optim.Adam(vrd_trainer.parameters())
 
     for epoch in range(opt.vrd_epoch):
