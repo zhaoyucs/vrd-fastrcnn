@@ -21,6 +21,7 @@ from utils.load_w2v import load_from_word2vec
 from utils import array_tool as at
 from utils.vis_tool import visdom_bbox
 from utils.eval_tool import eval_detection_voc
+from utils.encoding import DataParallelModel, DataParallelCriterion
 
 # fix for ulimit
 # https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
@@ -44,7 +45,7 @@ def train(**kwargs):
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
     faster_rcnn_trainer.load(opt.faster_rcnn_model)
     vrd_trainer = VGG16PREDICATES(faster_rcnn_trainer, word2vec_db, dataset.db.triplets).cuda()
-    vrd_trainer = nn.DataParallel(vrd_trainer, device_ids=[0])
+    vrd_trainer = DataParallelModel(vrd_trainer, device_ids=[0,1])
     optimizer = t.optim.Adam(vrd_trainer.parameters())
 
     for epoch in range(opt.vrd_epoch):
