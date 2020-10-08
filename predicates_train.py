@@ -29,12 +29,15 @@ import argparse
 import resource
 
 def train(**kwargs):
-
-    t.distributed.init_process_group(backend="nccl", init_method="tcp://localhost:23456", rank=0, world_size=1)
-    opt._parse(kwargs)
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--local_rank", type=int, default=0)
+    args = parser.parse_args()
+
+    t.distributed.init_process_group(backend="nccl", init_method="tcp://localhost:23456", rank=0, world_size=1)
+    t.cuda.set_device(args.local_rank)
+    device = torch.device("cuda", args.local_rank)
+    opt._parse(kwargs)
+
 
     dataset = VRDDataset(opt)
     print('load data')
@@ -50,8 +53,8 @@ def train(**kwargs):
     faster_rcnn = FasterRCNNVGG16()
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
     faster_rcnn_trainer.load(opt.faster_rcnn_model)
-    vrd_trainer = VGG16PREDICATES(faster_rcnn_trainer, word2vec_db, dataset.db.triplets).cuda()
-    vrd_trainer = nn.parallel.DistributedDataParallel(vrd_trainer, device_ids=[0,1])
+    vrd_trainer = VGG16PREDICATES(faster_rcnn_trainer, word2vec_db, dataset.db.triplets).to(device)
+    vrd_trainer = nn.parallel.DistributedDataParallel(vrd_trainer, device_ids=[args.local_rank], output_device=args.local_rank)
     optimizer = t.optim.Adam(vrd_trainer.parameters())
 
     for epoch in range(opt.vrd_epoch):
