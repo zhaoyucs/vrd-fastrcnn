@@ -28,6 +28,8 @@ from utils.encoding import DataParallelModel, DataParallelCriterion
 import resource
 
 def train(**kwargs):
+
+    t.distributed.init_process_group(backend="nccl", init_method="tcp://localhost:23456", rank=0, world_size=1)
     opt._parse(kwargs)
 
     dataset = VRDDataset(opt)
@@ -45,7 +47,7 @@ def train(**kwargs):
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
     faster_rcnn_trainer.load(opt.faster_rcnn_model)
     vrd_trainer = VGG16PREDICATES(faster_rcnn_trainer, word2vec_db, dataset.db.triplets).cuda()
-    vrd_trainer = DataParallelModel(vrd_trainer, device_ids=[0,1])
+    vrd_trainer = nn.parallel.DistributedDataParallel(vrd_trainer, device_ids=[0,1])
     optimizer = t.optim.Adam(vrd_trainer.parameters())
 
     for epoch in range(opt.vrd_epoch):
@@ -59,7 +61,7 @@ def train(**kwargs):
             img = img.cuda().float()
 
             loss = vrd_trainer(img, D)
-            total_loss += loss
+            total_loss += sum(loss)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
