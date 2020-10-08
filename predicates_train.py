@@ -40,12 +40,14 @@ def train(**kwargs):
 
 
     dataset = VRDDataset(opt)
+    train_sampler = t.utils.data.distributed.DistributedSampler(dataset)
     print('load data')
     dataloader = data_.DataLoader(dataset, \
                                   batch_size=1, \
                                   shuffle=True, \
                                   # pin_memory=True,
-                                  num_workers=opt.num_workers)
+                                  num_workers=opt.num_workers,
+                                  sampler=train_sampler)
 
     # word2vec_map = load_from_word2vec("test_word2vec.txt")
     word2vec_db = json.load(open("w2v.json"))
