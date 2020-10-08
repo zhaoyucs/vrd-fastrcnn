@@ -33,7 +33,7 @@ def train(**kwargs):
     parser.add_argument("--local_rank", type=int, default=0)
     args = parser.parse_args()
 
-    t.distributed.init_process_group(backend="nccl", init_method="env://", rank=0, world_size=1)
+    t.distributed.init_process_group(backend="nccl", init_method="env://")
     t.cuda.set_device(args.local_rank)
     device = t.device("cuda", args.local_rank)
     opt._parse(kwargs)
