@@ -22,6 +22,7 @@ from utils import array_tool as at
 from utils.vis_tool import visdom_bbox
 from utils.eval_tool import eval_detection_voc
 from utils.encoding import DataParallelModel, DataParallelCriterion
+import argparse
 
 # fix for ulimit
 # https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
@@ -31,6 +32,9 @@ def train(**kwargs):
 
     t.distributed.init_process_group(backend="nccl", init_method="tcp://localhost:23456", rank=0, world_size=1)
     opt._parse(kwargs)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--local_rank", type=int, default=0)
 
     dataset = VRDDataset(opt)
     print('load data')
