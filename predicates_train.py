@@ -33,9 +33,9 @@ def train(**kwargs):
     parser.add_argument("--local_rank", type=int, default=0)
     args = parser.parse_args()
 
-    t.distributed.init_process_group(backend="nccl", init_method="tcp://localhost:23456", rank=0, world_size=1)
+    t.distributed.init_process_group(backend="nccl", init_method="env://", rank=0, world_size=1)
     t.cuda.set_device(args.local_rank)
-    device = torch.device("cuda", args.local_rank)
+    device = t.device("cuda", args.local_rank)
     opt._parse(kwargs)
 
 
@@ -76,6 +76,7 @@ def train(**kwargs):
         print(total_loss / (ii + 1))
 
 if __name__ == '__main__':
-    import fire
+    # import fire
 
-    fire.Fire()
+    # fire.Fire()
+    train()
