@@ -68,9 +68,9 @@ def full_vgg16(**kwargs):
     # classifier = nn.Sequential(*classifier)
 
     # freeze top4 conv
-    # for layer in model.features[:10]:
-    #     for p in layer.parameters():
-    #         p.requires_grad = False
+    for layer in model.features[:10]:
+        for p in layer.parameters():
+            p.requires_grad = False
 
     return model
 
