@@ -56,7 +56,7 @@ def train(**kwargs):
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
     faster_rcnn_trainer.load(opt.faster_rcnn_model)
     vrd_trainer = VGG16PREDICATES(faster_rcnn_trainer, word2vec_db, dataset.db.triplets).to(device)
-    vrd_trainer = nn.parallel.DistributedDataParallel(vrd_trainer, device_ids=[args.local_rank], output_device=args.local_rank)
+    vrd_trainer = nn.parallel.DistributedDataParallel(vrd_trainer, find_unused_parameters=True, device_ids=[args.local_rank], output_device=args.local_rank)
     optimizer = t.optim.Adam(vrd_trainer.parameters())
 
     for epoch in range(opt.vrd_epoch):
