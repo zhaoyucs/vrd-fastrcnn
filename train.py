@@ -12,7 +12,7 @@ from model import FasterRCNNVGG16
 from torch.utils import data as data_
 from trainer import FasterRCNNTrainer
 from utils import array_tool as at
-from utils.vis_tool import visdom_bbox
+# from utils.vis_tool import visdom_bbox
 from utils.eval_tool import eval_detection_voc
 
 # fix for ulimit
@@ -101,11 +101,11 @@ def train(**kwargs):
 
                 # plot predicti bboxes
                 _bboxes, _labels, _scores = trainer.faster_rcnn.predict([ori_img_], visualize=True)
-                pred_img = visdom_bbox(ori_img_,
-                                       at.tonumpy(_bboxes[0]),
-                                       dataset.db.label_names,
-                                       at.tonumpy(_labels[0]).reshape(-1),
-                                       at.tonumpy(_scores[0]))
+                # pred_img = visdom_bbox(ori_img_,
+                #                        at.tonumpy(_bboxes[0]),
+                #                        dataset.db.label_names,
+                #                        at.tonumpy(_labels[0]).reshape(-1),
+                #                        at.tonumpy(_scores[0]))
                 # trainer.vis.img('pred_img', pred_img)
 
                 # rpn confusion matrix(meter)

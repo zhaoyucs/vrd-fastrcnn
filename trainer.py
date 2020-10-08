@@ -8,7 +8,7 @@ from model.utils.creator_tool import AnchorTargetCreator, ProposalTargetCreator
 from torch import nn
 import torch as t
 from utils import array_tool as at
-from utils.vis_tool import Visualizer
+# from utils.vis_tool import Visualizer
 
 from utils.config import opt
 from torchnet.meter import ConfusionMeter, AverageValueMeter
@@ -55,7 +55,7 @@ class FasterRCNNTrainer(nn.Module):
 
         self.optimizer = self.faster_rcnn.get_optimizer()
         # visdom wrapper
-        self.vis = Visualizer(env=opt.env)
+        # self.vis = Visualizer(env=opt.env)
 
         # indicators for training status
         self.rpn_cm = ConfusionMeter(2)
@@ -189,7 +189,7 @@ class FasterRCNNTrainer(nn.Module):
         save_dict['model'] = self.faster_rcnn.state_dict()
         save_dict['config'] = opt._state_dict()
         save_dict['other_info'] = kwargs
-        save_dict['vis_info'] = self.vis.state_dict()
+        # save_dict['vis_info'] = self.vis.state_dict()
 
         if save_optimizer:
             save_dict['optimizer'] = self.optimizer.state_dict()
@@ -205,7 +205,7 @@ class FasterRCNNTrainer(nn.Module):
             os.makedirs(save_dir)
 
         t.save(save_dict, save_path)
-        self.vis.save([self.vis.env])
+        # self.vis.save([self.vis.env])
         return save_path
 
     def load(self, path, load_optimizer=True, parse_opt=False, ):
