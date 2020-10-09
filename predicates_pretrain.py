@@ -7,7 +7,6 @@ from data.dataset import Dataset, TestDataset, VRDDataset
 from model.faster_rcnn_vgg16 import VGG16PREDICATES_PRE_TRAIN
 
 
-
 def train(**kwargs):
     opt._parse(kwargs)
 
@@ -45,15 +44,6 @@ def train(**kwargs):
         print(total_loss / it)
         # eval
     t.save(model.model.state_dict(), './checkpoints/pretrain.plk')
-
-if __name__ == '__main__':
-    import fire
-
-    fire.Fire()
-
-        
-
-
 
 if __name__ == '__main__':
     import fire

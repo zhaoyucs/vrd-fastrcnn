@@ -11,9 +11,9 @@
             "request": "launch",
             "pythonPath": "${command:python.interpreterPath}",
             "program": "${file}",
-            "args": [
-                "train"
-            ],
+            // "args": [
+            //     "train"
+            // ],
             "cwd":"${workspaceFolder}",
             "env": {},
             "envFile": "${workspaceFolder}/.env",

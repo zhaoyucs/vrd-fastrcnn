@@ -33,30 +33,35 @@ def train(**kwargs):
     parser.add_argument("--local_rank", type=int, default=0)
     args = parser.parse_args()
 
-    t.distributed.init_process_group(backend="nccl", init_method="env://")
-    t.cuda.set_device(args.local_rank)
+    # t.distributed.init_process_group(backend="nccl", init_method="env://")
+    # t.cuda.set_device(args.local_rank)
     device = t.device("cuda", args.local_rank)
     opt._parse(kwargs)
 
 
     dataset = VRDDataset(opt)
-    train_sampler = t.utils.data.distributed.DistributedSampler(dataset)
+    # train_sampler = t.utils.data.distributed.DistributedSampler(dataset)
     print('load data')
+    # dataloader = data_.DataLoader(dataset, \
+    #                               batch_size=1, \
+    #                               shuffle=False, \
+    #                               # pin_memory=True,
+    #                               num_workers=opt.num_workers,
+    #                               sampler=train_sampler)
     dataloader = data_.DataLoader(dataset, \
                                   batch_size=1, \
-                                  shuffle=False, \
+                                  shuffle=True, \
                                   # pin_memory=True,
-                                  num_workers=opt.num_workers,
-                                  sampler=train_sampler)
+                                  num_workers=opt.num_workers)
 
     # word2vec_map = load_from_word2vec("test_word2vec.txt")
     word2vec_db = json.load(open("w2v.json"))
 
-    faster_rcnn = FasterRCNNVGG16()
+    faster_rcnn = FasterRCNNVGG16().to(device)
     faster_rcnn_trainer = FasterRCNNTrainer(faster_rcnn)
     faster_rcnn_trainer.load(opt.faster_rcnn_model)
     vrd_trainer = VGG16PREDICATES(faster_rcnn_trainer, word2vec_db, dataset.db.triplets).to(device)
-    vrd_trainer = nn.parallel.DistributedDataParallel(vrd_trainer, find_unused_parameters=True, device_ids=[args.local_rank], output_device=args.local_rank)
+    # vrd_trainer = nn.parallel.DistributedDataParallel(vrd_trainer, find_unused_parameters=True, device_ids=[args.local_rank], output_device=args.local_rank)
     optimizer = t.optim.Adam(vrd_trainer.parameters())
 
     for epoch in range(opt.vrd_epoch):

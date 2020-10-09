@@ -98,8 +98,13 @@ def convert_coords(sc, oc):
 
 def union_bbox(sub, obj):
     # bbox = [ymin, xmin, ymax, xmax]
-    sub_y_min, sub_x_min, sub_y_max, sub_x_max = sub[0]
-    obj_y_min, obj_x_min, obj_y_max, obj_x_max = obj[0]
+    if len(sub.shape) == 2:
+        sub = sub[0]
+    if len(obj.shape) == 2:
+        obj = obj[0]
+
+    sub_y_min, sub_x_min, sub_y_max, sub_x_max = sub
+    obj_y_min, obj_x_min, obj_y_max, obj_x_max = obj
 
     return t.tensor([min(sub_y_min, obj_y_min), min(sub_x_min, obj_x_min), max(sub_y_max, obj_y_max), max(sub_x_max, obj_x_max)])
 
@@ -266,7 +271,7 @@ class VGG16PREDICATES(nn.Module):
         self.faster_rcnn = faster_rcnn
 
         # self.extractor, self.classifier = full_vgg16()
-        self.cnn_obj = full_vgg16(num_classes=100)
+        # self.cnn_obj = full_vgg16(num_classes=100)
         self.cnn_rel = VGG16PREDICATES_PRE_TRAIN(train=False)
 
         self.w2v = word2vec
@@ -306,11 +311,24 @@ class VGG16PREDICATES(nn.Module):
 
         img_size = x.shape[2:]
 
-        # bboxes, labels,  scores = self.faster_rcnn.faster_rcnn.predict(x, [x.shape[2:]])
+        bboxes, labels,  scores = self.faster_rcnn.faster_rcnn.predict(x, [x.shape[2:]])
 
-        # D = [i,j,k], O1, O2
+        # get bbox pairs (A(N,2)?)
+        # for ii in bboxes
 
-        loss = self.loss(x, D_gt)
+        # zip to D
+
+        # D = [i,j,k], O1, O2, Pi, Pj
+        D_pred = []
+        for ii, (bbox_s, label_s, score_s) in enumerate(zip(bboxes[0], labels[0], scores[0])):
+            for jj, (bbox_o, label_o, score_o) in enumerate(zip(bboxes[0], labels[0], scores[0])):
+                if ii != jj:
+                    for k in range(self.k):
+                        D_pred.append([[label_s, label_o, k], bbox_s, bbox_o, score_s, score_o])
+
+
+
+        loss = self.loss(x, D_gt, D_pred)
         return loss
 
     def init_w2v_tab(self):
@@ -379,13 +397,14 @@ class VGG16PREDICATES(nn.Module):
     #     else:
     #         return self.f_full_tab
 
-    def func_V(self, img, R, O1, O2, verbose=False):
+    def func_V(self, img, R, O1, O2, Pi, Pj, verbose=False):
         """
         Reduce relationship <i,j,k> to scalar visual space.
 
         """
         i, j, k = R
         u_bbox = union_bbox(O1, O2)
+        u_bbox = u_bbox.int()
         # region = img[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]]
         mask = t.ones_like(img).bool()
         mask[:, :, u_bbox[0]:u_bbox[2], u_bbox[1]:u_bbox[3]] = False
@@ -397,21 +416,23 @@ class VGG16PREDICATES(nn.Module):
 
         # ruid = get_ruid(O1, O2, k)
         # _bboxes, _labels, _scores = self.faster_rcnn.faster_rcnn.predict(img, [img.shape[2:]])
-        mask1 = t.ones_like(img).bool()
-        mask1[:, :, O1[0][0]:O1[0][2], O1[0][1]:O1[0][3]] = False
-        region1 = img.masked_fill(mask1, 0)
-        score1 = self.cnn_obj(region1)
-        P_i = score1[0][i]
+        # mask1 = t.ones_like(img).bool()
+        # mask1[:, :, O1[0][0]:O1[0][2], O1[0][1]:O1[0][3]] = False
+        # region1 = img.masked_fill(mask1, 0)
+        # score1 = self.cnn_obj(region1)
+        # P_i = score1[0][i]
 
-        mask2 = t.ones_like(img).bool()
-        mask2[:, :, O2[0][0]:O2[0][2], O2[0][1]:O2[0][3]] = False
-        region2 = img.masked_fill(mask2, 0)
-        score2 = self.cnn_obj(region2)
-        P_j = score2[0][j]
+        # mask2 = t.ones_like(img).bool()
+        # mask2[:, :, O2[0][0]:O2[0][2], O2[0][1]:O2[0][3]] = False
+        # region2 = img.masked_fill(mask2, 0)
+        # score2 = self.cnn_obj(region2)
+        # P_j = score2[0][j]
+
+
 
         # P_i = _scores[0][i]
         # P_j = _scores[j]
-        P_k = t.mm(self.Z[k], fc7.permute(1,0)) + self.s[k]
+        P_k = t.dot(self.Z[k].squeeze(0), fc7.squeeze(0)) + self.s[k]
         # try:
         #     P_i = self.obj_probs[O1[:2]][i]
         #     P_j = self.obj_probs[O2[:2]][j]
@@ -433,9 +454,9 @@ class VGG16PREDICATES(nn.Module):
         # P_k = self.V_dict[ruid]
 
         if verbose:
-            print('V: i {}  j {}  k {}'.format(P_i, P_j, P_k))
+            print('V: i {}  j {}  k {}'.format(Pi, Pj, P_k))
 
-        return P_i * P_j * P_k
+        return Pi * Pj * P_k
 
     def sample_R_pairs(self, triplets):
         # TODO other possibility is that we sample pairs in same image only
@@ -467,30 +488,39 @@ class VGG16PREDICATES(nn.Module):
         fn = lambda R1, R2: max(self.func_f(R1) - self.func_f(R2) + 1, 0)
         return sum(fn(R1, R2) for R1 in Rs for R2 in Rs)
 
-    def func_C(self, img, D_gt):
+    def func_C(self, img, D_gt, D_pred):
         """
         Rank loss function
 
         """
         # import ipdb; ipdb.set_trace()
         C = 0.0
+        # for R, O1, O2 in D_gt:
+        #     c_ = [self.func_V(img, R_, O1_, O2_, Pi, Pj) * self.func_f(R_) for R_, O1_, O2_, Pi, Pj in D_pred]
+        #         #   if (R_ != R) and (not O1_.equal(O1) or not O2_.equal(O2))]
+        #     if c_ is not None and c_ != []:
+        #         c_max = max(c_)
+        #         c = self.func_V(img, R, O1, O2, 1, 1) * self.func_f(R)
+        #         C += max(0, 1 - c + c_max)
+
+        c_ = [self.func_V(img, R_, O1_, O2_, Pi, Pj) * self.func_f(R_) for R_, O1_, O2_, Pi, Pj in D_pred]
+        if c_ is not None and c_ != []:
+            c_max = max(c_)
         for R, O1, O2 in D_gt:
-            c_ = [self.func_V(img, R_, O1_, O2_) * self.func_f(R_) for R_, O1_, O2_ in D_gt
-                  if (R_ != R) and (not O1_.equal(O1) or not O2_.equal(O2))]
-            if c_ is not None and c_ != []:
-                c_max = max(c_)
-                c = self.func_V(img, R, O1, O2) * self.func_f(R)
-                C += max(0, 1 - c + c_max)
+            c = self.func_V(img, R, O1, O2, 1, 1) * self.func_f(R)
+            C += max(0, 1 - c + c_max)
+
         return C
 
-    def loss(self, img, D_gt):
+    def loss(self, img, D_gt, D_pred):
         """
         Final objective loss function.
 
         """
-        C = self.func_C(img, D_gt)
+        C = self.func_C(img, D_gt, D_pred)
         L = self.lamb1 * self.func_L(D_gt)
-        K = self.lamb2 * self.func_K()
+        # K = self.lamb2 * self.func_K()
+        K = 0
         return C + L + K
 
 
